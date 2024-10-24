@@ -18,8 +18,9 @@ print(api.get_account())
 
 """Test data with yfinance and compare with historical results"""
 
+
 #Download Data from yfinance for Apple Stocks from 2014 to 2023
-data = yf.download("AAPL", start='2014-01-01', end='2023-01-01')\
+data = yf.download("META", start='2014-01-01', end='2019-01-01')
 
 #Plot Closing Prices
 data["Close"].plot(figsize=(10, 6))
@@ -83,4 +84,45 @@ plt.legend()
 plt.show()
 
 
+"""Multiple Stocks"""
+tickers = ["AAPL", "META", "TSLA", "IBM", "BA"]
+dataset = yf.download(tickers, start='2014-01-01', end='2023-01-01')['Close']
+for ticker in tickers:
+    dataset[f'{ticker}_SMA_50'] = dataset[f"{ticker}"].rolling(window = 50).mean()
+    dataset[f'{ticker}_SMA_200'] = dataset[f"{ticker}"].rolling(window = 200).mean()
+    dataset[f"{ticker}_signal"] = np.where(dataset[f'{ticker}_SMA_50'] > dataset[f'{ticker}_SMA_200'], 1, -1)
+    dataset[f"{ticker}_position"] = dataset[f'{ticker}_signal'].shift(1)
 
+dataset = dataset.dropna()
+print(dataset)
+
+#initialize portfolio
+initial_capital = 10000.0
+shares = {}
+weights = {}
+cash = {}
+for ticker in tickers:
+    shares[ticker] = 0
+    weights[ticker] = 1/len(tickers)
+    cash[ticker] = initial_capital * weights[ticker]
+
+portfolio_values = []
+
+for i in range(len(dataset)):
+    portfolio_value = 0
+    for ticker in tickers:
+        if dataset[f'{ticker}_position'][i] == 1 and shares[ticker] == 0:
+            shares[ticker] =  cash[ticker] / dataset[f'{ticker}'][i]
+            cash[ticker] = 0
+        elif dataset[f'{ticker}_position'][i] == -1 and shares[ticker] > 0:
+            cash[ticker] = shares[ticker] * dataset[f'{ticker}'][i]
+            shares[ticker] = 0
+        
+        # Portfolio value at each time step (cash + value of shares held)
+        portfolio_value = portfolio_value + cash[ticker] + shares[ticker] * dataset[f'{ticker}'][i]
+    
+    portfolio_values.append(portfolio_value)
+
+print(portfolio_values[-1])
+plt.plot(portfolio_values)
+plt.show()
